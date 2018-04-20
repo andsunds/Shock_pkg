@@ -2,7 +2,7 @@ classdef Shock_MB < Shock_pkg.Shock
 % Shocks using the assumption that the electrons are Maxwell-Boltzmann
 % distributed.
 %
-% Author: Andréas Sundström
+% Author: Andréas Sundström (c)
 %
 
 properties
@@ -91,26 +91,7 @@ methods (Access=protected)
             end
         end
     end
-    %{
-    function [phimin]=sub_set_phimin(obj, phimin_in)
-        % This function is used in the set.phimin in the parentclass
-        % 'Shock'. This function takes an initial guess and the tries to
-        % find phimin from there; if it fails then it looks inside an
-        % interval below phimax.
-        phimin=find_phimin(obj, phimin_in);
-        if phimin>=obj.phimax
-            fprintf('The specified phimin_in found the wrong root of Phi.\nNow trying in the interval [0, 1-tol]*phimax.\n\n')
-            %Now we instead define an interval in which to look
-            phimin_in=[0,(1-obj.tol)]*obj.phimax;
-            if obj.Phi(-1, phimin_in(2) )*obj.Phi(-1, 0)<0
-                phimin=find_phimin(obj, phimin_in);
-            else
-                phimin=NaN;
-                fprintf('ERROR: No phimin in the interval [0, 1-tol]*phimax.\n')
-            end
-        end
-    end
-    %}
+ 
 end %end methods (proteccted)
 
 methods (Static=true, Access=protected)

@@ -6,9 +6,8 @@ classdef (Abstract=true) Shock < matlab.mixin.CustomDisplay
 % The inheritance from matlab.mixin.CustomDisplay, is just so that the
 % property display can be changed.
 %
-% Author: Andréas Sundström
+% Author: Andréas Sundström (c)
 %
-% Superclass for: Shock_MB
     
 properties (SetAccess = protected)
     tol  %The tolerance to which the integrations should be carried
@@ -48,7 +47,6 @@ methods
             obj.n=n/n(1);  %ion densities (normalized so that main ion density is 1)
             obj.Z=Z;       %charges
             obj.m=m;       %masses
-            %obj.F=F_in;    %Guess for where to start looking for phimax
             
             %The variable speed_type determines which type of measurement
             %speed is (Mach or V).
@@ -183,7 +181,7 @@ methods (Access=protected)
         propgrp = matlab.mixin.util.PropertyGroup(proplist);
     end
     function [PHI] = Phi_single(obj, USDS, phi)
-        %Functino that takes a single phi value, used in Phi().
+        %Function that takes a single phi value, used in Phi().
         if USDS==1
             PHI=integral(@(phiP) obj.charge_dens(USDS, phiP), 0, phi, 'RelTol',obj.tol);
         elseif USDS==-1

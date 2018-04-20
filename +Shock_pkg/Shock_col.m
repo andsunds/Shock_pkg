@@ -3,7 +3,7 @@ classdef Shock_col < Shock_pkg.Shock_MB & Shock_pkg.Shock
 % 
 % ONLY SINGLE ION-SPECIES PLASMAS!
 %
-% Author: Andréas Sundström
+% Author: Andréas Sundström (c)
 %
 
 properties
@@ -32,27 +32,19 @@ methods
         % Superclass construct
         obj=obj@Shock_pkg.Shock(args{:});
         
-        %{
-        if length(phiminmax_prev)~=2
-            warning('Bad phiminmax_prev.')
+        if obj.ion_species>1
+            warning('Number of ion species entered: %d. This code can only handle 1 single ion species.\n',...
+                obj.ion_species)
             return
-        else
-            obj.phimin_prev=min(phiminmax_prev);
-            obj.phimax_prev=max(phiminmax_prev);
         end
-        %}
+
         
         % If everything is ok, this finds and sets phimax
         if ( obj.ion_species>0 )&&( ~isempty(obj.V) )
-            
-            %if length(t)==1 || t(1)~=0
-            %    t=[0,reshape(t,1,[])];
-            %end
-            obj.t=t; % At this stage length(t) must be 1
+            obj.t=t; 
             obj.nu_star=nu_star;
             
             %Find phiminmax
-            
             [obj.phimax,obj.phimin]=find_phimaxmin(obj, phimaxmin_in);
             
             % Checks that the solution is physical (actual maximum at
@@ -62,12 +54,6 @@ methods
                 obj.phimax=NaN;
                 return
             end
-            
-            %obj.phimin=find_phimin(obj, obj.phimin_prev);
-            %if obj.phimin<0
-                %obj.phimax=NaN;
-            %    obj.phimin=NaN;
-            %end
         end
     end %end Constructor
     
@@ -85,12 +71,7 @@ methods
         %Calculates the UpStream ion density of ion species number 'index'.
         %This is done using the static function nj_single.
         % The argument USDS must be either +1 (US) or -1 (DS).
-        %fprintf('obj.nj\n')
-        if abs(USDS)==1
-            %obj.m(index),obj.Z(index),obj.n(index),
-            %obj.phimax,obj.phimax_prev,obj.phimin_prev, obj.t,obj.Upsilon,
-            %obj.V, USDS, obj.tol
-                
+        if abs(USDS)==1 
             ni=arrayfun(@(x) obj.nj_single(obj.m(index),obj.Z(index),obj.n(index),...
                 x, obj.phimax,obj.phimin, obj.t,obj.Upsilon,...
                 obj.V, USDS, obj.tol), phi);            
@@ -99,20 +80,7 @@ methods
             ni=NaN;
         end
     end
-    %{
-    function [ni_diff] = nj_diff(obj, USDS, phi, index)
-        %Calculates the UpStream ion density of ion species number 'index'.
-        %This is done using the static function nj_single.
-        % The argument USDS must be either +1 (US) or -1 (DS).
-        if abs(USDS)==1
-            ni_diff=obj.nj_diff_static(USDS, obj.m(index),obj.Z(index),obj.n(index),...
-                phi, obj.phimax,obj.phimax_prev,obj.phimin_prev, obj.t,obj.Upsilon, obj.V);
-        else
-            fprintf('ERROR:the argument USDS must be either +1 (US) or -1 (DS).\n');
-            ni_diff=NaN;
-        end
-    end
-    %}
+    
     function [n_el] = ne(obj, phi)
         % The total elctron density, due to ALL ion species.
         n_el=0; %init
@@ -130,8 +98,6 @@ methods
         % Functions specifying the derivatives of phi (G)
         odefunUS=@(x, G) [G(2);-obj.charge_dens(+1, G(1))];
         odefunDS=@(x, G) [G(2);-obj.charge_dens(-1, G(1))];
-        %odefunUS=@(x, G) [G(2);-obj.charge_dens(+1, G(1))-obj.Z*obj.nj_diff(+1, G(1), 1)];
-        %odefunDS=@(x, G) [G(2);-obj.charge_dens(-1, G(1))-obj.Z*obj.nj_diff(-1, G(1), 1)];
         G0=[obj.phimax;0]; %initial condition
         % If there is only one limit, then use a symmetrical inteval
         if nargin==2
@@ -145,20 +111,16 @@ methods
             opt=odeset('reltol',obj.tol);
             [xUS, phiUS]=ode45(odefunUS, [0,Xmax],G0, opt);
             [xDS, phiDS]=ode45(odefunDS, [0,-abs(Xmin)],G0, opt);
-            X  =[flip(xDS,1);xUS];
-            phi=[flip(phiDS(:,1),1);phiUS(:,1)];
-            E  =[flip(phiDS(:,2),1);phiUS(:,2)];
+            X  =[flipud(xDS);xUS];
+            phi=[flipud(phiDS(:,1));phiUS(:,1)];
+            E  =[flipud(phiDS(:,2));phiUS(:,2)];
             fprintf('ODE solved!\n')
             
-            %DEBUG
-            rho=zeros(length(X),1);
-            for i=1:length(rho)
-                if X(i)>0
-                    dG=odefunUS(X(i), [phi(i),E(i)]);
-                else
-                    dG=odefunDS(X(i), [phi(i),E(i)]);
-                end
-                rho(i)=-dG(2);
+            %Calculates the charge density if wanted
+            if nargout==4
+                rhoUS=obj.charge_dens(+1, phiUS(:,1));
+                rhoDS=obj.charge_dens(-1, phiDS(:,1));
+                rho=[flipud(rhoDS);rhoUS];
             end
         else
             X=[];phi=[];E=[];
@@ -180,16 +142,8 @@ methods (Access=protected)
     function [phimax, phimin]=find_phimaxmin(obj,phimaxmin_in)
         % Finds the correct value of phimax, used in the constructor.
         
-        %{
-        % It is possible to specify starting points for both phimax and
-        % phimin, but if only one value is specified then 0.8 of the
-        % initital guess for phimax is used for phimin. 
-        if length(F_in)==2
-            phiM_in=[F_in(1);F_in(2)]*(obj.Mach^2*obj.tau/2);
-        else
-            phiM_in=[1; 0.8]*F_in*(obj.Mach^2*obj.tau/2);
-        end
-        %}
+        %Depending on if the initial guess is for both phimax and phimin or
+        %just phimax
         if length(phimaxmin_in)==2
             phiM_in=phimaxmin_in;
         else
@@ -219,66 +173,21 @@ methods (Access=protected)
         % Note: using phim(1)*obj.trapping_coef, since at this stage,
         % phimax has not yet been set.
     end
-    % }
-    %{
-    function [phimax]=find_phimax(obj)
-        % Finds the correct value of phimax, used in the constructor.
-        phimaxin=obj.phimax_prev;
-        %The Sagdeev potential has to be 0 at phi=phimax
-        
-        phimax=fzero(@(phim) obj.Phi_static(+1,obj.m,obj.Z,obj.n,...
-                        phim, phim, obj.phimax_prev,obj.phimin_prev, ...
-                        obj.t,obj.Upsilon, obj.V, obj.tau, obj.tol), phimaxin,...
-                        optimset('tolfun',obj.tol));
-    end
-    
-    function [phimin]=find_phimin(obj, phimin_in)
-        % Finds phimin is obj is a valid shock.
-        %Checks to see if all is well
-        
-        %fprintf('find_phimin\n') %DEBUG
-        if isnan(obj.phimax)
-            phimin=NaN;
-            return
-        end
-        
-        %The DS Sagdeev potential has to be 0 at phi=phimmin
-        phimin=fzero(@(phim) obj.Phi_static(-1,obj.m,obj.Z,obj.n,...
-                    phim, obj.phimax, obj.phimax_prev,obj.phimin_prev, ...
-                    obj.t,obj.Upsilon, obj.V, obj.tau, obj.tol), phimin_in,...
-                    optimset('tolfun',obj.tol));
-        if phimin>=obj.phimax
-            fprintf('The specified phimin_in found the wrong root of Phi.\nNow trying in the interval [0, 1-tol]*phimax.\n\n')
-            %Now we instead define an interval in which to look
-            phimin_in=[0,(1-obj.tol)]*obj.phimax;
-            if obj.Phi(-1, phimin_in )*obj.Phi(-1, 0)<0
-                phimin=find_phimin(obj, phimin_in);
-            else
-                phimin=NaN;
-                fprintf('ERROR: No phimin in the interval [0, 1-tol]*phimax.\n')
-            end
-        end
-    end
-    %}
+
     
     function [PHI] = Phi_single(obj, USDS, phi)
         %Functino that takes a single phi value, used in Phi().
-        if USDS==1
+        if USDS==1 %Upstream
             PHI=integral(@(phiP) obj.charge_dens(USDS, phiP), 0, phi, 'RelTol',obj.tol);
-        elseif USDS==-1
+        elseif USDS==-1 %Downstream
             PHI=integral(@(phiP) obj.charge_dens(USDS, phiP), obj.phimax, phi, 'RelTol',obj.tol);
-            %PHI=PHI-obj.Phi_diff_static(USDS, obj.m,obj.Z,obj.n, obj.phimax, obj.phimax,...
-            %obj.phimax_prev,obj.phimin_prev, obj.t,obj.Upsilon, obj.V);
         else
             PHI=[];
             fprintf('ERROR:the argument USDS must be either +1 (US) or -1 (DS).\n');
             return
         end
         PHI=real(PHI);
-        %+obj.Phi_diff_static(USDS, obj.m,obj.Z,obj.n, phi, obj.phimax,...
-        %    obj.phimax_prev,obj.phimin_prev, obj.t,obj.Upsilon, obj.V);
     end
-    
 end %end methods (proteccted)
 
 methods (Static=true, Access=protected)
@@ -289,11 +198,11 @@ methods (Static=true, Access=protected)
     function [Phi_single] = Phi_static(USDS,m,Z,n, phi, phimax, phimin, t,Upsilon, V, tau, tol)
         %Must be static to be able to use this in find_phimax().
         import Shock_pkg.Shock_col
-        if USDS==1
+        if USDS==1 %Upstream
             Phi_single=integral(@(phiP) Shock_col.charge_dens_static(...
                 USDS,m,Z,n, phiP, phimax, phimin,...
                 t,Upsilon, V, tau, tol), 0, phi, 'RelTol',tol);
-        elseif USDS==-1
+        elseif USDS==-1 %Downstream
             Phi_single=integral(@(phiP) Shock_col.charge_dens_static(...
                 USDS,m,Z,n, phiP, phimax, phimin,...
                 t,Upsilon, V, tau, tol), phimax, phi, 'RelTol',tol);
@@ -302,7 +211,7 @@ methods (Static=true, Access=protected)
             fprintf('ERROR:the argument USDS must be either +1 (US) or -1 (DS).\n');
             return
         end
-        
+        % Removes unphyical imaginary part of the numrical calculation
         Phi_single=real(Phi_single);
     end
 
@@ -312,7 +221,6 @@ methods (Static=true, Access=protected)
         import Shock_pkg.Shock_col
         L=length(Z);
         rho=0;
-        %fprintf('rho\n') %DEBUG
         for j=1:L
         rho=rho+( +Z(j)*Shock_col.nj_static(USDS,m(j),Z(j),n(j), phi, phimax,phimin, t,Upsilon, V, tol)...
                             -Shock_col.ne_static(m(j),Z(j),n(j), phi, phimax,phimin, t,Upsilon, V, tau, tol));
@@ -335,36 +243,32 @@ methods (Static=true, Access=protected)
         %endpoints.
         % the varible lim is either +1 or -1.
         import Shock_pkg.Shock_col
-        v0=real(sqrt(2*Zj*(phimax-phi)/mj));
+        v0=real(sqrt(2*Zj*(phimax-phi)/mj));%integration limit for the regular ions
         n=integral(@(v) Shock_col.fj_static(mj,Zj,nj, phi, V, v), -Inf,USDS*v0, 'RelTol', tol);
         
         
-        %Here is where the collision come in
-        phiA=abs(phimax-phimin);
-        %n_reg=2-USDS;
-        lim=10*sqrt(t)/Upsilon;
+        %Here is where the contribution from the collision are added
+        phiA=abs(phimax-phimin);%Amplitude of the DS oscillation
+        lim1=10*sqrt(t)/Upsilon;
+        lim=sqrt(2*lim1+lim1^2); %integration limit to help the num integration
         int_diff=integral(@(k) Shock_col.fjIII_reduced(k, phi, phimax,phimin, t,Upsilon),...
-             0,sqrt(2*lim+lim^2), 'RelTol', tol);
+             0,lim, 'RelTol', tol);
              %1,1+lim, 'RelTol', tol);
         
         if USDS == -1
+            %In the downstream, we also have to include the trapped ions.
             Qphi=sqrt((phimax-phi)/phiA);
             int_diff=int_diff+ 2*integral(@(k) Shock_col.fjII_reduced(k, phi, phimax,phimin, t,Upsilon),...
-             0,Qphi, 'RelTol', tol);
-            
+                                            0,Qphi, 'RelTol', tol);
         end
         n=n+ real(int_diff).*Shock_col.fj_static(mj,Zj,nj, phi, V, -v0)*sqrt(2*phiA);
     end
     
     function f3 = fjIII_reduced(k, phi, phimax,phimin, t,Upsilon)
+        %The ion distribution function in region III, co-passing region
+        %(overtaking the shock). This distribution is present in both the
+        %up- and the downstream.
         srt2=.5/sqrt(t);
-        %{
-        phiA=abs(phimax-phimin_prev);
-        phitilde=phi-phimin_prev;
-
-        f3=erfc(-Shock_pkg.w_approx(1-k,Upsilon)*srt2).*real(k./sqrt(k.^2-phitilde/phiA));
-        %}
-        % {
         phiA=abs(phimax-phimin);
         Qphisq=(phimax-phi)/phiA;
         if Qphisq~=0
@@ -372,9 +276,10 @@ methods (Static=true, Access=protected)
         else
             f3=erfc(-Shock_pkg.w_approx(1-real(sqrt(k.^2+1)),Upsilon)*srt2);
         end
-        % }
     end
     function f2 = fjII_reduced(k, phi, phimax,phimin, t,Upsilon)
+        %The ion distribution function in region II, trapped region. This
+        %population is only present in the downstream.
         srt2=.5/sqrt(t);
         phiA=abs(phimax-phimin);
         Qphisq=(phimax-phi)/phiA;
@@ -383,27 +288,18 @@ methods (Static=true, Access=protected)
         else
             f2=zeros(size(k));
         end
-        % }
     end
-    %%}
     
     function [ne_j] = ne_static(mj,Zj,nj, phi, phimax, phimin, t,Upsilon, V, tau, tol)
         % The elctron density, due to ONE ion species. To get the total
         % value, sum this function over all ions. This is assuming that the
         % electron distribution function is walways a pure
-        % Maxwell-Boltzmann. 
-        % The ion density (of this specific species) far upstream from the
-        % shock, but still containing reflected ions. ("n" is without the
-        % refelcted ions.) 
-        %njInfUS=0.5*nj*( 1 + 2*erf(V*sqrt(mj/2)) +...
-        %    erf(real(sqrt(2*Zj*phimax/mj)-V)*sqrt(mj/2)) );
-        
+        % Maxwell-Boltzmann.
         import Shock_pkg.Shock_col
 
+        %The ion density in the far upstream
         njInfUS=Shock_col.nj_static(+1,mj,Zj,nj,...
             0,phimax,phimin, t,Upsilon, V, tol);
-        %njInfUS=njInfUS + Shock_col.nj_diff_static(+1,mj,Zj,nj,...
-        %    0,phimax,phimax_prev,phimin_prev, t,Upsilon, V);
         
         % Given a pure M-B, the distribution integrates up to this density:
         ne_j=Zj*njInfUS*exp(phi/tau);

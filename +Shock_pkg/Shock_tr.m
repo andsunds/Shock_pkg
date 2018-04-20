@@ -5,7 +5,7 @@ classdef Shock_tr < Shock_pkg.Shock
 %
 % 
 %
-% Author: Andréas Sundström
+% Author: Andréas Sundström (c)
 %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -13,21 +13,15 @@ classdef Shock_tr < Shock_pkg.Shock
 % we don't seem to be getting the right values of phimin all the time.
 
 properties (SetAccess = protected)
-    % This class has no own properties other than what is inhereted from
-    % the Shock superclass.
     trapping_coef
 end
 properties (Dependent)
-    % This class has no own properties other than what is inhereted from
-    % the Shock superclass.
     phi_tr
 end
 
 methods
     function obj = Shock_tr(m,Z,n,tau, trapping_coef_in, speed_type,speed,phimaxmin_in, tol)
         %Constructor
-        % Since there are no new properties, the constructor is mostly the same as
-        % in the Shock super class
         import Shock_pkg.*
         if nargin==0
             args={};
