@@ -71,7 +71,7 @@ if isequal(Sh_handle,@Shock_tr)||isequal(Sh_handle,@Shock_pkg.Shock_tr)
     %    Sh_prev.trapping_coef,T_tmp, [Sh_prev.psimax,Sh_prev.psimin], Sh_prev.tol};
     %i_T=4;
 else
-    args={Sh_prev.Z,Sh_prev.n,...
+    args={Sh_prev.Z,Sh_prev.n,Sh_prev.m,...
         T_tmp,Sh_prev.M, Sh_prev.t, Sh_prev.nu_star, [Sh_prev.psimax,Sh_prev.psimin], Sh_prev.tol};
     i_T=3;
 end

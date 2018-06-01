@@ -12,7 +12,7 @@ end
 
 
 methods
-    function obj = Shock_MB(Z,n, taui, Mach, psimaxmin_in, tol)
+    function obj = Shock_MB(Z,n,m, taui, Mach, psimaxmin_in, tol)
         %Constructor
         % Since there are no new properties, the constructor is mostly the same as
         % in the Shock super class
@@ -20,7 +20,7 @@ methods
         if nargin==0
             args={};
         else
-            args={Z,n, taui, Mach, tol};
+            args={Z,n,m, taui, Mach, tol};
         end
         % Superclass construct
         obj=obj@Shock_pkg_new.Shock(args{:});
@@ -49,8 +49,8 @@ methods
     function [n_el] = ne(obj, psi)
         % The total elctron density, due to ALL ion species.
         n_el=0; %init
-        for i=1 %summing over all species
-        n_el=n_el+obj.ne_static(obj.taui, obj.Z(i),obj.n(i),...
+        for i=1:obj.N_ion %summing over all species
+        n_el=n_el+obj.ne_static(obj.taui(i), obj.Z(i),obj.n(i),obj.zeta(i),...
             psi, obj.psimax, obj.M);
         end
     end
@@ -58,11 +58,18 @@ methods
 end %end methods
 
 methods (Access=protected)
+        function propgrp = getPropertyGroups(~)
+        %Function defining how to display the properties
+        proplist = {'tol','n','Z','m','taui','M',...
+            'psimax','psimin'};
+        propgrp = matlab.mixin.util.PropertyGroup(proplist);
+    end
+    
     function [phimax]=find_psimax(obj, psimax_in)
         % Finds the correct value of phimax, used in the constructor.
         psimaxin=psimax_in;%*(obj.Mach^2*obj.tau/2); %initial guess
         %The Sagdeev potential has to be 0 at phi=phimax
-        phimax=fzero(@(psim) obj.Psi_static(+1,obj.Z,obj.n,...
+        phimax=fzero(@(psim) obj.Psi_static(+1,obj.Z,obj.n,obj.zeta,...
                         psim, psim, obj.M, obj.taui, obj.tol), psimaxin,...
                         optimset('tolfun',obj.tol));
     end
@@ -75,7 +82,7 @@ methods (Access=protected)
             psimin=NaN;
         else
             %The DS Sagdeev potential has to be 0 at phi=phimmin
-            psimin=fzero(@(psim) obj.Psi_static(-1,obj.Z,obj.n,...
+            psimin=fzero(@(psim) obj.Psi_static(-1,obj.Z,obj.n,obj.zeta,...
                             psim, obj.psimax, obj.M, obj.taui, obj.tol), psimin_in,...
                             optimset('tolfun',obj.tol));
             if psimin>=obj.psimax
@@ -98,7 +105,7 @@ methods (Static=true, Access=protected)
     % Defining static functions which in turn are defined to be used in the
     % above functions, these should and can not be used out side this class
         
-    function [ne_j] = ne_static(taui, Zj,nj, psi, psimax, M)
+    function [ne_j] = ne_static(taui, Zj,nj,zetaj, psi, psimax, M)
         % The elctron density, due to ONE ion species. To get the total
         % value, sum this function over all ions. This is assuming that the
         % electron distribution function is walways a pure
@@ -107,32 +114,32 @@ methods (Static=true, Access=protected)
         % shock, but still containing reflected ions. ("n" is without the
         % refelcted ions.) 
         njInfUS=0.5*nj*( 1 + 2*erf(M*sqrt(taui/2)) +...
-            erf(real(sqrt(2*psimax)-M)*sqrt(taui/2)) );
+            erf(real(sqrt(2*zetaj*psimax)-M)*sqrt(taui/2)) );
         % Given a pure M-B, the distribution integrates up to this density:
         ne_j=Zj*njInfUS*exp(psi);
     end
     
-    function [rho] = charge_dens_static(USDS, Z,n, psi, psimax, M, taui, tol)
+    function [rho] = charge_dens_static(USDS, Z,n,zeta, psi, psimax, M, taui, tol)
         %  Note reqiures that m, Z, and n are all the same length.
         import Shock_pkg_new.Shock_MB
         L=length(Z);
         rho=0;
         for j=1:L
-        rho=rho+( -Shock_MB.ne_static(taui,Z(j),n(j), psi, psimax, M)...
-                  +Z(j)*Shock_MB.nj_static(USDS,taui,n(j), psi, psimax, M, tol) );
+        rho=rho+( -Shock_MB.ne_static(taui(j),Z(j),n(j),zeta(j), psi, psimax, M)...
+                  +Z(j)*Shock_MB.nj_static(USDS,taui(j),n(j),zeta(j), psi, psimax, M, tol) );
         end
     end
    
 
-    function [Psi_single] = Psi_static(USDS,Z,n, psi, psimax, M, taui, tol)
+    function [Psi_single] = Psi_static(USDS,Z,n,zeta, psi, psimax, M, taui, tol)
         %Must be static to be able to use this in find_phimax().
         import Shock_pkg_new.Shock_MB
         if USDS==1
             Psi_single=integral(@(psiP) Shock_MB.charge_dens_static(...
-                USDS,Z,n, psiP, psimax, M, taui, tol), 0, psi, 'RelTol',tol);
+                USDS,Z,n,zeta, psiP, psimax, M, taui, tol), 0, psi, 'RelTol',tol);
         elseif USDS==-1
             Psi_single=integral(@(psiP) Shock_MB.charge_dens_static(...
-                USDS,Z,n, psiP, psimax, M, taui, tol), psimax, psi, 'RelTol',tol);
+                USDS,Z,n,zeta, psiP, psimax, M, taui, tol), psimax, psi, 'RelTol',tol);
         else
             Psi_single=[];
             fprintf('ERROR:the argument USDS must be either +1 (US) or -1 (DS).\n');

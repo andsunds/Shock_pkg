@@ -14,8 +14,9 @@ properties (SetAccess = protected)
     tol  %The tolerance to which the integrations should be carried
     
     %These properties can be vectors, but they have to be the same length.
-    n    % ion densities (normalized so that main ion density is 1)
     Z
+    n
+    m
     taui         % electron-ion temp ration
     M           % flow speed
     psimax      % Max value of the electrostatic potential
@@ -24,24 +25,38 @@ properties (SetAccess = protected)
 end
 properties (Dependent)
     %lambda %Wavelength of DS oscillations
+    N_ion % the number of ion species
+    zeta
 end
     
 methods
-    function obj = Shock(Z,n, taui, Mach, tol)
+    function obj = Shock(Z,n,m, taui, Mach, tol)
         %Constructor
         if nargin==0 %this is due to the way you call a superclass constructor
             %Do nothing
         else
-            %Set values upon construction.
-            obj.tol=tol;
-            obj.taui=taui;  %electron-ion temp ration
-            obj.n=n/sum(n.*Z);  %ion densities (normalized so that main ion density is 1)
-            obj.Z=Z;       %charges
-            obj.M=Mach;
-
+            %Check that n and Z have all ion-species 
+            if length(Z)==length(n) && length(Z)==length(m) && length(Z)==length(taui)
+                %Set values upon construction.
+                obj.tol=tol;
+                obj.taui=taui;  %electron-ion temp ration
+                obj.n=n/sum(n.*Z);  %ion densities (normalized so that main ion density is 1)
+                obj.Z=Z;       %charges
+                obj.m=m;
+                obj.M=Mach;
+            else
+                warning('Z, n, m, and taui not the same length!')
+            end
         end
-        
     end %end consructor
+    
+    function Nion=get.N_ion(obj)
+        Nion=length(obj.Z);
+    end
+    
+    function z=get.zeta(obj)
+        z=obj.Z*obj.m(1)./(obj.m*obj.Z(1));
+    end
     
     function L=lambda(obj)
         %Get function for lambda
@@ -97,8 +112,8 @@ methods
             index=1;
         end
         if abs(USDS)==1
-            ni=arrayfun(@(x) obj.nj_single(obj.taui,...
-                obj.n(index), x, obj.psimax, obj.M, USDS, obj.tol), psi);
+            ni=arrayfun(@(x) obj.nj_single(obj.taui(index),obj.n(index),obj.zeta(index),...
+                x, obj.psimax, obj.M, USDS, obj.tol), psi);
         else
             fprintf('ERROR:the argument USDS must be either +1 (US) or -1 (DS).\n');
             ni=NaN;
@@ -109,19 +124,12 @@ methods
     function [rho] = charge_dens(obj, USDS, psi)
         % Retruns the charge density either US or DS at potential phi .
         % The argument USDS must be either +1 (US) or -1 (DS).
-        %rho=obj.charge_dens_static(USDS, obj.Z,obj.n, psi, obj.psimax, obj.M, obj.taui, obj.tol);
-        % {
         if abs(USDS)==1
-            rho=0;
-            for i=1
-                rho=rho+obj.Z(i)*obj.nj(USDS, psi, i);
-            end
-            rho=rho-obj.ne(psi);
+            rho=obj.charge_dens_static(USDS, obj.Z,obj.n,obj.zeta, psi, obj.psimax, obj.M, obj.taui, obj.tol);
         else 
             fprintf('ERROR:the argument USDS must be either +1 (US) or -1 (DS).\n');
             rho=NaN;
         end
-        %}
     end
 
     function [PSI] = Psi(obj, USDS, psi)
@@ -157,9 +165,9 @@ end
 
 
 methods (Abstract=true, Static=true, Access=protected)
-    [ne_j] = ne_static(taui, Zj,nj, psi, psimax, M);
-    [rho] = charge_dens_static(USDS, Z,n, psi, psimax, M, taui, tol);
-    [Psi_single] = Psi_static(USDS,Z,n, psi, psimax, M, taui, tol);
+    [ne_j] = ne_static(taui, Zj,nj,zetaj, psi, psimax, M);
+    [rho] = charge_dens_static(USDS, Z,n,zeta, psi, psimax, M, taui, tol);
+    [Psi_single] = Psi_static(USDS,Z,n,zeta, psi, psimax, M, taui, tol);
 end
 
 
@@ -169,19 +177,19 @@ methods (Static=true, Access=protected)
     % of some of the above functions, these should and can not be used
     % outside of this class or its subclasses. 
     
-    function [dist] = fj_static(taui,nj, psi, M, v)
+    function [dist] = fj_static(taui,nj,zetaj, psi, M, v)
         % The ion distributin function of a specific ion species
-        dist = nj*sqrt(taui/(2*pi)) * exp(-(taui/2)*(sqrt(v.^2+2*psi)-M).^2);
+        dist = nj*sqrt(taui/(2*pi)) * exp(-(taui/2)*(sqrt(v.^2+2*zetaj*psi)-M).^2);
     end
-    function [n] = nj_static(USDS,taui,nj, psi, psimax, M, tol)
+    function [n] = nj_static(USDS,taui,nj,zetaj, psi, psimax, M, tol)
         %Calclulats the upstream or downstream ion density for ONE ion
         %species, due to the value of the potential and the maximum value
         %of the potential. 
         import Shock_pkg_new.Shock
         %taui,nj, psi, psimax, M, USDS, tol
-        n=arrayfun(@(x) Shock.nj_single(taui,nj, x, psimax, M, USDS, tol),psi);
+        n=arrayfun(@(x) Shock.nj_single(taui,nj,zetaj, x, psimax, M, USDS, tol),psi);
     end
-    function [n] = nj_single(taui,nj, psi, psimax, M, USDS, tol)
+    function [n] = nj_single(taui,nj,zetaj, psi, psimax, M, USDS, tol)
         %Helping function to nj_static
         %This function is needed becase integral() passes a phi as a vector
         %argument, while in turn integral() itselv can't handel vectors as
@@ -190,7 +198,7 @@ methods (Static=true, Access=protected)
         import Shock_pkg_new.Shock
         
         v0=real(sqrt(2*(psimax-psi)));
-        n=integral(@(v) Shock.fj_static(taui,nj, psi, M, v), -Inf,USDS*v0, 'RelTol', tol);
+        n=integral(@(v) Shock.fj_static(taui,nj,zetaj, psi, M, v), -Inf,USDS*v0, 'RelTol', tol);
     end
 
 end %end methods (static)

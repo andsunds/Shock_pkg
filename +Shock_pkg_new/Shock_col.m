@@ -19,7 +19,7 @@ end
 
 
 methods
-    function obj = Shock_col(Z,n, taui, Mach, t, nu_star, psimaxmin_in, tol)
+    function obj = Shock_col(Z,n,m, taui, Mach, t, nu_star, psimaxmin_in, tol)
         %Constructor
         % Since there are no new properties, the constructor is mostly the same as
         % in the Shock super class
@@ -27,7 +27,7 @@ methods
         if nargin==0
             args={};
         else
-            args={Z,n, taui, Mach, tol};
+            args={Z,n,m, taui, Mach, tol};
         end
         
         % Superclass construct
@@ -63,6 +63,17 @@ methods
         % Note, there is a calculation of Upsilon in zerofun_phiminmax(obj, phim)
     end
     
+    
+    function [rho] = charge_dens(obj, USDS, psi)
+        % Retruns the charge density either US or DS at potential phi .
+        % The argument USDS must be either +1 (US) or -1 (DS).
+        if abs(USDS)==1
+            rho=obj.charge_dens_static(USDS, obj.Z,obj.n,obj.zeta, psi, obj.psimax,obj.psimin, obj.t,obj.Upsilon, obj.M, obj.taui, obj.tol);
+        else 
+            fprintf('ERROR:the argument USDS must be either +1 (US) or -1 (DS).\n');
+            rho=NaN;
+        end
+    end
 
     function [ni] = nj(obj, USDS, psi, index)
         %Calculates the UpStream ion density of ion species number 'index'.
@@ -72,7 +83,7 @@ methods
             index=1;
         end
         if abs(USDS)==1 
-            ni=arrayfun(@(x) obj.nj_single(obj.taui(index),obj.n(index),...
+            ni=arrayfun(@(x) obj.nj_single(obj.taui(index),obj.n(index),obj.zeta(index),...
                 x, obj.psimax,obj.psimin, obj.t,obj.Upsilon,...
                 obj.M, USDS, obj.tol), psi);            
         else
@@ -85,7 +96,7 @@ methods
         % The total elctron density, due to ALL ion species.
         n_el=0; %init
         for i=1:length(obj.n) %summing over all species
-            n_el=n_el+obj.ne_static(obj.taui,obj.n(i),...
+            n_el=n_el+obj.ne_static(obj.taui(i),obj.n(i),obj.Z(i),obj.zeta(i),...
                 psi, obj.psimax,obj.psimin, obj.t,obj.Upsilon, obj.M, obj.tol);
         end
     end
@@ -96,7 +107,7 @@ end %end methods
 methods (Access=protected)
     function propgrp = getPropertyGroups(~)
         %Function defining how to display the properties
-        proplist = {'tol','n','Z','m','ion_species','taui','M',...
+        proplist = {'tol','n','Z','m','taui','M',...
             'psimax','psimin','psiA', 'nu_star','t', 'Upsilon'};
         propgrp = matlab.mixin.util.PropertyGroup(proplist);
     end
@@ -131,8 +142,8 @@ methods (Access=protected)
         % The system of functions which we want to find the root of.
         % Phi_static(USDS,m,Z,n, phi, phimax, phi_tr, V, tau, tol)
         Upsilon_guess=sqrt(2*(psim(1)-psim(2))*obj.taui/obj.nu_star);
-        FVAL=[obj.Psi_static(+1,obj.Z,obj.n, psim(1), psim(1), psim(2), obj.t,Upsilon_guess, obj.M, obj.taui, obj.tol);
-              obj.Psi_static(-1,obj.Z,obj.n, psim(2), psim(1), psim(2), obj.t,Upsilon_guess, obj.M, obj.taui, obj.tol)];
+        FVAL=[obj.Psi_static(+1,obj.Z,obj.n,obj.zeta, psim(1), psim(1), psim(2), obj.t,Upsilon_guess, obj.M, obj.taui, obj.tol);
+              obj.Psi_static(-1,obj.Z,obj.n,obj.zeta, psim(2), psim(1), psim(2), obj.t,Upsilon_guess, obj.M, obj.taui, obj.tol)];
         % Note: using phim(1)*obj.trapping_coef, since at this stage,
         % phimax has not yet been set.
     end
@@ -158,16 +169,16 @@ methods (Static=true, Access=protected)
     % above functions, these should and can not be used out side this class
     
     
-    function [Psi_single] = Psi_static(USDS,Z,n, psi, psimax, psimin, t,Upsilon, M, taui, tol)
+    function [Psi_single] = Psi_static(USDS,Z,n,zeta, psi, psimax, psimin, t,Upsilon, M, taui, tol)
         %Must be static to be able to use this in find_phimax().
         import Shock_pkg_new.Shock_col
         if USDS==1 %Upstream
             Psi_single=integral(@(psiP) Shock_col.charge_dens_static(...
-                USDS,Z,n, psiP, psimax, psimin,...
+                USDS,Z,n,zeta, psiP, psimax, psimin,...
                 t,Upsilon, M, taui, tol), 0, psi, 'RelTol',tol);
         elseif USDS==-1 %Downstream
             Psi_single=integral(@(psiP) Shock_col.charge_dens_static(...
-                USDS,Z,n, psiP, psimax, psimin,...
+                USDS,Z,n,zeta, psiP, psimax, psimin,...
                 t,Upsilon, M, taui, tol), psimax, psi, 'RelTol',tol);
         else
             Psi_single=[];
@@ -179,30 +190,28 @@ methods (Static=true, Access=protected)
     end
 
     
-    function [rho] = charge_dens_static(USDS, Z,n, psi, psimax,psimin, t,Upsilon, M, taui, tol)
+    function [rho] = charge_dens_static(USDS, Z,n,zeta, psi, psimax,psimin, t,Upsilon, M, taui, tol)
         %  Note reqiures that m, Z, and n are all the same length.
         import Shock_pkg_new.Shock_col
         L=length(Z);
         rho=0;
         for j=1:L
-        rho=rho+( Z(j)*Shock_col.nj_static(USDS,taui,n(j), psi, psimax,psimin, t,Upsilon, M, tol) ...
-                 -Shock_col.ne_static(taui,n(j), psi, psimax,psimin, t,Upsilon, M, tol));
+        rho=rho+( Z(j)*Shock_col.nj_static(USDS,taui(j),n(j),zeta(j), psi, psimax,psimin, t,Upsilon, M, tol) ...
+                 -Shock_col.ne_static(taui(j),n(j),Z(j),zeta(j), psi, psimax,psimin, t,Upsilon, M, tol));
         end
-        %rho=rho+( +Z(j)*Shock_col.nj_static(USDS,m(j),Z(j),n(j), phi, phimax,phimin, t,Upsilon, V, tol)...
-        %                    -Shock_col.ne_static(m(j),Z(j),n(j), phi, phimax,phimin, t,Upsilon, V, tau, tol));
     end
     
     %%{
-    function [n] = nj_static(USDS,taui,nj, psi, psimax,psimin, t,Upsilon, M, tol)
+    function [n] = nj_static(USDS,taui,nj,zetaj, psi, psimax,psimin, t,Upsilon, M, tol)
         %Calclulats the upstream or downstream ion density for ONE ion
         %species, due to the value of the potential and the maximum value
         %of the potential. 
         import Shock_pkg_new.Shock_col
-        n=arrayfun(@(x) Shock_col.nj_single(taui,nj, x, psimax,psimin, t,Upsilon, M, USDS, tol),psi);
+        n=arrayfun(@(x) Shock_col.nj_single(taui,nj,zetaj, x, psimax,psimin, t,Upsilon, M, USDS, tol),psi);
         %(mj,Zj,nj, x, phimax,phimin, t,Upsilon, V, USDS, tol), phi);
     end
 
-    function [n] = nj_single(taui,nj, psi, psimax,psimin, t,Upsilon, M, USDS, tol)
+    function [n] = nj_single(taui,nj,zetaj, psi, psimax,psimin, t,Upsilon, M, USDS, tol)
         %Helping function to nj_static
         %This function is needed becase integral() passes a phi as a vector
         %argument, while in turn integral() itselv can't handel vectors as
@@ -210,7 +219,7 @@ methods (Static=true, Access=protected)
         % the varible lim is either +1 or -1.
         import Shock_pkg_new.Shock_col
         v0=real(sqrt(2*(psimax-psi)));
-        n=integral(@(v) Shock_col.fj_static(taui,nj, psi, M, v), -Inf,USDS*v0, 'RelTol', tol);
+        n=integral(@(v) Shock_col.fj_static(taui,nj,zetaj, psi, M, v), -Inf,USDS*v0, 'RelTol', tol);
         
         if t>0
             %Here is where the contribution from the collision are added
@@ -227,7 +236,7 @@ methods (Static=true, Access=protected)
                 int_diff=int_diff+ 2*integral(@(k) Shock_col.fjII_reduced(k, psi, psimax,psimin, t,Upsilon),...
                                                 0,Qphi, 'RelTol', tol);
             end
-            n=n+ real(int_diff)*sqrt(2*psiA).*Shock_col.fj_static(taui,nj, psi,M,-v0);%(mj,Zj,nj, phi, V, -v0)
+            n=n+ real(int_diff)*sqrt(2*psiA).*Shock_col.fj_static(taui,nj,zetaj, psi,M,-v0);%(mj,Zj,nj, phi, V, -v0)
         end
     end
 
@@ -260,7 +269,7 @@ methods (Static=true, Access=protected)
     
 
 
-    function [ne_j] = ne_static(taui,nj, psi, psimax, psimin, t,Upsilon, M, tol)
+    function [ne_j] = ne_static(taui,nj,Zj,zetaj, psi, psimax, psimin, t,Upsilon, M, tol)
         % The elctron density, due to ONE ion species. To get the total
         % value, sum this function over all ions. This is assuming that the
         % electron distribution function is walways a pure
@@ -268,11 +277,11 @@ methods (Static=true, Access=protected)
         import Shock_pkg_new.Shock_col
 
         %The ion density in the far upstream
-        njInfUS=Shock_col.nj_static(+1,taui,nj, 0, psimax,psimin, t,Upsilon, M, tol);
+        njInfUS=Shock_col.nj_static(+1,taui,nj,zetaj, 0, psimax,psimin, t,Upsilon, M, tol);
         %nj_static(+1,mj,Zj,nj, 0,phimax,phimin, t,Upsilon, V, tol);
         
         % Given a pure M-B, the distribution integrates up to this density:
-        ne_j=njInfUS*exp(psi);
+        ne_j=Zj*njInfUS*exp(psi);
     end
 
 end %end methods

@@ -18,7 +18,7 @@ data=[Sh_cell{1}.t, Sh_cell{1}.psimax, Sh_cell{1}.psimin];
 save(output_file, 'data', '-ascii','-append')
 
 %Retrieveing the constant shock properties
-Z=pre_calc_Shock.Z; n=pre_calc_Shock.n;
+Z=pre_calc_Shock.Z; n=pre_calc_Shock.n; m=pre_calc_Shock.m;
 Mach=pre_calc_Shock.M; taui=pre_calc_Shock.taui;
 nu_star=pre_calc_Shock.nu_star; tol=pre_calc_Shock.tol;
 
@@ -30,7 +30,7 @@ for j=1:N_steps
     fprintf('============================================================\n')
     fprintf('j+i0 = %d\t t = %1.2f\n\n',j+i0, t)
     %Calc new shock
-    Sh_cell{j+1}=Shock_pkg_new.Shock_col(Z,n, taui,Mach, t, nu_star, psiminmax_prev, tol);
+    Sh_cell{j+1}=Shock_pkg_new.Shock_col(Z,n,m, taui,Mach, t, nu_star, psiminmax_prev, tol);
     %saves the new data to file
     data=[t, Sh_cell{j+1}.psimax, Sh_cell{j+1}.psimin];
     save(output_file, 'data', '-ascii','-append')
