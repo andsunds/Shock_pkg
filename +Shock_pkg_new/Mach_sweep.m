@@ -63,7 +63,7 @@ function [Sh_tmp, M_tmp, dM_tmp] = single_step(Sh_handle,Sh_prev, M_tmp, dM_tmp,
 %        Sh_prev.trapping_coef,M_tmp, [Sh_prev.psimax,Sh_prev.psimin], Sh_prev.tol};
 %    i_M=7;
 %elseif isequal(Sh_handle,@Shock_col)    
-    args={Sh_prev.Z,Sh_prev.n,Sh_prev.m,...
+    args={Sh_prev.Z,Sh_prev.m,Sh_prev.n,...
         Sh_prev.taui,M_tmp, Sh_prev.t, Sh_prev.nu_star, [Sh_prev.psimax,Sh_prev.psimin], Sh_prev.tol};
     i_M=4;
 %else

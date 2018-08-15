@@ -12,12 +12,10 @@ classdef (Abstract=true) Shock < matlab.mixin.CustomDisplay
     
 properties (SetAccess = protected)
     tol  %The tolerance to which the integrations should be carried
-    
-    %These properties can be vectors, but they have to be the same length.
     Z
-    n
     m
-    taui         % electron-ion temp ration
+    n
+    taui        % electron-ion temp ration
     M           % flow speed
     psimax      % Max value of the electrostatic potential
     psimin % Min value of the electrostatic potential in downstream region
@@ -30,22 +28,22 @@ properties (Dependent)
 end
     
 methods
-    function obj = Shock(Z,n,m, taui, Mach, tol)
+    function obj = Shock(Z,m,n, tau, Mach, tol)
         %Constructor
         if nargin==0 %this is due to the way you call a superclass constructor
             %Do nothing
         else
             %Check that n and Z have all ion-species 
-            if length(Z)==length(n) && length(Z)==length(m) && length(Z)==length(taui)
+            if length(Z)==length(n) && length(Z)==length(m) && ( length(tau)==1 || length(tau)==length(Z) )
                 %Set values upon construction.
                 obj.tol=tol;
-                obj.taui=taui;  %electron-ion temp ration
                 obj.n=n/sum(n.*Z);  %ion densities (normalized so that main ion density is 1)
                 obj.Z=Z;       %charges
                 obj.m=m;
+                obj.taui=tau.*Z;  %electron-ion temp ration
                 obj.M=Mach;
             else
-                warning('Z, n, m, and taui not the same length!')
+                warning('Z, m, n not the same length!')
             end
         end
     end %end consructor
@@ -84,18 +82,20 @@ methods
             opt=odeset('reltol',obj.tol);
             [xUS, psiUS]=ode45(odefunUS, [0,Xmax],G0, opt);
             [xDS, psiDS]=ode45(odefunDS, [0,-abs(Xmin)],G0, opt);
-            X  =[flip(xDS,1);xUS];
-            phi=[flip(psiDS(:,1),1);psiUS(:,1)];
-            E  =[flip(psiDS(:,2),1);psiUS(:,2)];
+            X   = [flip(xDS,1);xUS];
+            phi = [flip(psiDS(:,1),1);psiUS(:,1)];
+            E   =-[flip(psiDS(:,2),1);psiUS(:,2)];
             
-            rho=zeros(length(X),1);
-            for i=1:length(rho)
-                if X(i)>0
-                    dG=odefunUS(X(i), [phi(i),E(i)]);
-                else
-                    dG=odefunDS(X(i), [phi(i),E(i)]);
+            if nargout>=4
+                rho=zeros(length(X),1);
+                for i=1:length(rho)
+                    if X(i)>0
+                        dG=odefunUS(X(i), [phi(i),E(i)]);
+                    else
+                        dG=odefunDS(X(i), [phi(i),E(i)]);
+                    end
+                    rho(i)=-dG(2);
                 end
-                rho(i)=-dG(2);
             end
         else
             X=[];phi=[];E=[];
@@ -125,7 +125,12 @@ methods
         % Retruns the charge density either US or DS at potential phi .
         % The argument USDS must be either +1 (US) or -1 (DS).
         if abs(USDS)==1
-            rho=obj.charge_dens_static(USDS, obj.Z,obj.n,obj.zeta, psi, obj.psimax, obj.M, obj.taui, obj.tol);
+            %rho=obj.charge_dens_static(USDS, obj.Z,obj.n,obj.zeta, psi, obj.psimax, obj.M, obj.taui, obj.tol);
+            rho=0; %init
+            for i=1:obj.N_ion %summing over all species
+            rho=rho+obj.nj(USDS,psi);
+            end
+            rho=rho-obj.ne(psi);
         else 
             fprintf('ERROR:the argument USDS must be either +1 (US) or -1 (DS).\n');
             rho=NaN;
@@ -186,6 +191,9 @@ methods (Static=true, Access=protected)
         %species, due to the value of the potential and the maximum value
         %of the potential. 
         import Shock_pkg_new.Shock
+        
+        
+        
         %taui,nj, psi, psimax, M, USDS, tol
         n=arrayfun(@(x) Shock.nj_single(taui,nj,zetaj, x, psimax, M, USDS, tol),psi);
     end

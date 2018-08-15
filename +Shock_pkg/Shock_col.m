@@ -151,7 +151,7 @@ methods (Access=protected)
         end
         
         % finding the root
-        phiM=fsolve(@(phim) obj.zerofun_phiminmax(phim), phiM_in, optimset('tolfun',obj.tol));
+        [phiM,~,EF]=fsolve(@(phim) obj.zerofun_phiminmax(phim), phiM_in, optimset('tolfun',obj.tol));
         % Error if there are some obviously wonky values
         if ( phiM(1)>phiM(2) )&& ( phiM(2)>0 )
             phimax=phiM(1);
@@ -161,6 +161,11 @@ methods (Access=protected)
             phimin=NaN;
             fprintf('ERROR: something is wrong. phimax = %.02f, phimin = %0.2f.\n',...
                 phiM(1),phiM(2))
+        end
+        if EF<=0
+            warning('No solution found, ExitFlag %d.\n',EF)
+            phimax=NaN;
+            phimin=NaN;
         end
     end
     

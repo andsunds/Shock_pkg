@@ -41,7 +41,7 @@ for j=1:(i0-1)
     T_tmp=T_tmp-dT_tmp;%Stepping down the Mach #
     fprintf('============================================================\n')
     fprintf('i = %d,  \t tau = %1.3f\n',i,T_tmp) %Print out progress
-    Trying to find shock solution
+    % Trying to find shock solution
     try
         [Sh_cell{i}, T_tmp, dT_tmp]=single_step(Sh_handle,Sh_cell{i+1}, T_tmp, dT_tmp, -1);
     catch
@@ -50,13 +50,6 @@ for j=1:(i0-1)
     end
 end 
 fprintf('DONE!\n')%Extracting shock parameters
-%tol=Sh_prev.tol;
-%m=Sh_prev.m;
-%n=Sh_prev.n;
-%Z=Sh_prev.Z;
-%tau=Sh_prev.tau;
-%F_in=Sh_prev.F;
-
 
 end%end function
 
@@ -71,7 +64,7 @@ if isequal(Sh_handle,@Shock_tr)||isequal(Sh_handle,@Shock_pkg.Shock_tr)
     %    Sh_prev.trapping_coef,T_tmp, [Sh_prev.psimax,Sh_prev.psimin], Sh_prev.tol};
     %i_T=4;
 else
-    args={Sh_prev.Z,Sh_prev.n,Sh_prev.m,...
+    args={Sh_prev.Z,Sh_prev.m,Sh_prev.n,...
         T_tmp,Sh_prev.M, Sh_prev.t, Sh_prev.nu_star, [Sh_prev.psimax,Sh_prev.psimin], Sh_prev.tol};
     i_T=3;
 end

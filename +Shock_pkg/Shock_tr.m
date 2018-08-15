@@ -20,7 +20,7 @@ properties (Dependent)
 end
 
 methods
-    function obj = Shock_tr(m,Z,n,tau, trapping_coef_in, speed_type,speed,phimaxmin_in, tol)
+    function obj = Shock_tr(m,Z,n,tau, C_tr, speed_type,speed,phimaxmin_in, tol)
         %Constructor
         import Shock_pkg.*
         if nargin==0
@@ -32,12 +32,18 @@ methods
         % Superclass construct
         obj=obj@Shock_pkg.Shock(args{:});
         if nargin==9
-            obj.trapping_coef=trapping_coef_in;
+            obj.trapping_coef=C_tr;
             % If everything is ok, this finds and sets phimax
             if ( obj.ion_species>0 )&&( ~isempty(obj.V) )
                 [obj.phimax, obj.phimin]=find_phimaxmin(obj, phimaxmin_in);
             end
         else
+            return
+        end
+        if obj.charge_dens(+1, obj.phimax)<0 || obj.charge_dens(-1, obj.phimax)<0
+            fprintf('ERROR: found phimax = %1.4f is NOT a true maximum.\n',obj.phimax)
+            obj.phimax=NaN;
+            obj.phimin=NaN;
             return
         end
     end %end Constructor
@@ -61,8 +67,8 @@ end %end methods
 methods (Access=protected)
     function propgrp = getPropertyGroups(~)
         %Function defining how to display the properties
-        proplist = {'tol','n','Z','m','ion_species','tau','Mach','V','cs',...
-            'phimax','phimin','phi_tr', 'trapping_coef', 'F'};
+        proplist = {'tol','n','Z','m','tau','Mach','V','cs',...
+            'phimax','phimin','phi_tr', 'trapping_coef'};
         propgrp = matlab.mixin.util.PropertyGroup(proplist);
     end
    
@@ -79,9 +85,11 @@ methods (Access=protected)
         end
         
         % finding the root
-        phiM=fsolve(@(phim) obj.zerofun_phiminmax(phim), phiM_in, optimset('tolfun',obj.tol));
+        OPT=optimset('tolfun',obj.tol,'Display','off');
+        [phiM,~,EF]=fsolve(@(phim) obj.zerofun_phiminmax(phim), phiM_in, OPT);
+        fprintf('EF = %d.\n',EF)
         % Error if there are some obviously wonky values
-        if ( phiM(1)>phiM(2) )&& ( phiM(2)>0 )
+        if  phiM(1)>phiM(2) && phiM(2)>0 
             phimax=phiM(1);
             phimin=phiM(2);
         else
@@ -89,6 +97,11 @@ methods (Access=protected)
             phimin=NaN;
             fprintf('ERROR: something is wrong. phimax = %.02f, phimin = %0.2f.\n',...
                 phiM(1),phiM(2))
+        end
+        if EF<=0
+            fprintf('No solution found, ExitFlag %d.\n',EF)
+            phimax=NaN;
+            phimin=NaN;
         end
     end
     
@@ -117,7 +130,7 @@ methods (Static=true, Access=protected)
         % shock, but still containing reflected ions. ("n" is without the
         % refelcted ions.) 
         njInfUS=0.5*nj*( 1 + 2*erf(V*sqrt(mj/2)) ...
-            + erf((sqrt(2*Zj*phimax/mj)-V)*sqrt(mj/2)) );
+            + erf(real(sqrt(2*Zj*phimax/mj)-V)*sqrt(mj/2)) );
         
         if phi<phi_tr
             ne_j=Zj*njInfUS*exp(phi/tau);

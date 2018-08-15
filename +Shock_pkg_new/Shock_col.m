@@ -19,7 +19,7 @@ end
 
 
 methods
-    function obj = Shock_col(Z,n,m, taui, Mach, t, nu_star, psimaxmin_in, tol)
+    function obj = Shock_col(Z,m,n, tau, Mach, t, nu_star, psimaxmin_in, tol)
         %Constructor
         % Since there are no new properties, the constructor is mostly the same as
         % in the Shock super class
@@ -27,7 +27,7 @@ methods
         if nargin==0
             args={};
         else
-            args={Z,n,m, taui, Mach, tol};
+            args={Z,m,n, tau, Mach, tol};
         end
         
         % Superclass construct
@@ -107,7 +107,7 @@ end %end methods
 methods (Access=protected)
     function propgrp = getPropertyGroups(~)
         %Function defining how to display the properties
-        proplist = {'tol','n','Z','m','taui','M',...
+        proplist = {'tol','Z','m','n','taui','M',...
             'psimax','psimin','psiA', 'nu_star','t', 'Upsilon'};
         propgrp = matlab.mixin.util.PropertyGroup(proplist);
     end
@@ -125,7 +125,8 @@ methods (Access=protected)
         end
         
         % finding the root
-        psiM=fsolve(@(psim) obj.zerofun_psiminmax(psim), psiM_in, optimset('tolfun',obj.tol));
+        [psiM,~,EF]=fsolve(@(psim) obj.zerofun_psiminmax(psim), psiM_in, optimset('tolfun',obj.tol));
+        
         % Error if there are some obviously wonky values
         if ( psiM(1)>psiM(2) )&& ( psiM(2)>0 )
             psimax=psiM(1);
@@ -135,6 +136,11 @@ methods (Access=protected)
             psimin=NaN;
             fprintf('ERROR: something is wrong. phimax = %.02f, phimin = %0.2f.\n',...
                 psiM(1),psiM(2))
+        end
+        if EF<=0
+            warning('No solution found, ExitFlag %d.\n',EF)
+            psimax=NaN;
+            psimin=NaN;
         end
     end
     

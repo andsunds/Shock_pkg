@@ -30,7 +30,7 @@ for j=1:N_steps
     fprintf('============================================================\n')
     fprintf('j+i0 = %d\t t = %1.2f\n\n',j+i0, t)
     %Calc new shock
-    Sh_cell{j+1}=Shock_pkg_new.Shock_col(Z,n,m, taui,Mach, t, nu_star, psiminmax_prev, tol);
+    Sh_cell{j+1}=Shock_pkg_new.Shock_col(Z,m,n, taui,Mach, t, nu_star, psiminmax_prev, tol);
     %saves the new data to file
     data=[t, Sh_cell{j+1}.psimax, Sh_cell{j+1}.psimin];
     save(output_file, 'data', '-ascii','-append')

@@ -32,6 +32,7 @@ methods
             if obj.charge_dens(+1, obj.phimax)<0 || obj.charge_dens(-1, obj.phimax)<0
                 fprintf('ERROR: found phimax = %1.4f is NOT a true maximum.\n',obj.phimax)
                 obj.phimax=NaN;
+                obj.phimin=NaN;
                 return
             elseif length(phimaxmin_in)==2
                 phimin_in=phimaxmin_in(2);
@@ -63,9 +64,13 @@ methods (Access=protected)
         % Finds the correct value of phimax, used in the constructor.
         phimaxin=phimax_in;%*(obj.Mach^2*obj.tau/2); %initial guess
         %The Sagdeev potential has to be 0 at phi=phimax
-        phimax=fzero(@(phim) obj.Phi_static(+1,obj.m,obj.Z,obj.n,...
+        [phimax,~,EF]=fzero(@(phim) obj.Phi_static(+1,obj.m,obj.Z,obj.n,...
                         phim, phim, obj.V, obj.tau, obj.tol), phimaxin,...
                         optimset('tolfun',obj.tol));
+        if EF<=0
+            warning('No solution found, ExitFlag %d.\n',EF)
+            phimax=NaN;
+        end
     end
     
     function [phimin]=find_phimin(obj, phimin_in)

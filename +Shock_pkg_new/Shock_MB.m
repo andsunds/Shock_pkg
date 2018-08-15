@@ -12,7 +12,7 @@ end
 
 
 methods
-    function obj = Shock_MB(Z,n,m, taui, Mach, psimaxmin_in, tol)
+    function obj = Shock_MB(Z,m,n, tau, Mach, psimaxmin_in, tol)
         %Constructor
         % Since there are no new properties, the constructor is mostly the same as
         % in the Shock super class
@@ -20,7 +20,7 @@ methods
         if nargin==0
             args={};
         else
-            args={Z,n,m, taui, Mach, tol};
+            args={Z,m,n, tau, Mach, tol};
         end
         % Superclass construct
         obj=obj@Shock_pkg_new.Shock(args{:});
@@ -60,18 +60,22 @@ end %end methods
 methods (Access=protected)
         function propgrp = getPropertyGroups(~)
         %Function defining how to display the properties
-        proplist = {'tol','n','Z','m','taui','M',...
+        proplist = {'tol','Z','m','n','taui','M',...
             'psimax','psimin'};
         propgrp = matlab.mixin.util.PropertyGroup(proplist);
     end
     
-    function [phimax]=find_psimax(obj, psimax_in)
+    function [psimax]=find_psimax(obj, psimax_in)
         % Finds the correct value of phimax, used in the constructor.
         psimaxin=psimax_in;%*(obj.Mach^2*obj.tau/2); %initial guess
         %The Sagdeev potential has to be 0 at phi=phimax
-        phimax=fzero(@(psim) obj.Psi_static(+1,obj.Z,obj.n,obj.zeta,...
+        [psimax,~,EF]=fzero(@(psim) obj.Psi_static(+1,obj.Z,obj.n,obj.zeta,...
                         psim, psim, obj.M, obj.taui, obj.tol), psimaxin,...
                         optimset('tolfun',obj.tol));
+        if EF <= 0 
+            warning('No solution found, ExitFlag %d.\n',EF)
+            psimax=0;
+        end
     end
 
     

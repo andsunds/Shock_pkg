@@ -45,8 +45,8 @@ end %end methods
 methods (Access=protected)
     function propgrp = getPropertyGroups(~)
         %Function defining how to display the properties
-        proplist = {'tol','n','Z','m','ion_species','tau','Mach','V','cs',...
-            'phimax','phimin', 'trapping_coef', 'F'};
+        proplist = {'tol','n','Z','m','tau','Mach','V','cs',...
+            'phimax','phimin', 'trapping_coef'};
         propgrp = matlab.mixin.util.PropertyGroup(proplist);
     end
     function FVAL = zerofun_phiminmax(obj, phim)

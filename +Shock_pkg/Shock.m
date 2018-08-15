@@ -50,7 +50,7 @@ methods
             
             %The variable speed_type determines which type of measurement
             %speed is (Mach or V).
-            if speed_type == 'Mach'
+            if strcmp(speed_type,'Mach')
                 obj.V=speed*obj.cs;
             elseif speed_type == 'V'
                 obj.V=speed;
@@ -110,21 +110,23 @@ methods
             opt=odeset('reltol',obj.tol);
             [xUS, phiUS]=ode45(odefunUS, [0,Xmax],G0, opt);
             [xDS, phiDS]=ode45(odefunDS, [0,-abs(Xmin)],G0, opt);
-            X  =[flip(xDS,1);xUS];
-            phi=[flip(phiDS(:,1),1);phiUS(:,1)];
-            E  =[flip(phiDS(:,2),1);phiUS(:,2)];
+            X  = [flip(xDS,1);xUS];
+            phi= [flip(phiDS(:,1),1);phiUS(:,1)];
+            E  =-[flip(phiDS(:,2),1);phiUS(:,2)];
             
-            rho=zeros(length(X),1);
-            for i=1:length(rho)
-                if X(i)>0
-                    dG=odefunUS(X(i), [phi(i),E(i)]);
-                else
-                    dG=odefunDS(X(i), [phi(i),E(i)]);
+            if nargout>=4
+                rho=zeros(length(X),1);
+                for i=1:length(rho)
+                    if X(i)>0
+                        dG=odefunUS(X(i), [phi(i),E(i)]);
+                    else
+                        dG=odefunDS(X(i), [phi(i),E(i)]);
+                    end
+                    rho(i)=-dG(2);
                 end
-                rho(i)=-dG(2);
             end
         else
-            X=[];phi=[];E=[];
+            X=[];phi=[];E=[];rho=[];
             fprintf('ERROR: not a maximum at phi=phimax, charge density is negative.\n')
         end
     end

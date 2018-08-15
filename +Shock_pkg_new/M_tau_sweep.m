@@ -28,7 +28,7 @@ for i=(iT0+1):NT
     fprintf('j = %d,  \t tau = %1.3f\n',i,TT(i)) %Print out progress
     try
         psimaxmin_in=[Sh_cell{i-1,iM0}.psimax,Sh_cell{i-1,iM0}.psimin];
-        Sh_cell{i,iM0}=Sh_handle(Z,n,m, TT(i), M0, t, nu_star, psimaxmin_in, tol);
+        Sh_cell{i,iM0}=Sh_handle(Z,m,n, TT(i), M0, t, nu_star, psimaxmin_in, tol);
         Sh_tmp=Shock_pkg_new.Mach_sweep(Sh_handle, Sh_cell{i,iM0}, iM0, NM, M0, dM);
         for k=1:NM
             Sh_cell{i,k}=Sh_tmp{k};
@@ -43,7 +43,7 @@ for i=fliplr(1:(iT0-1))
     fprintf('j = %d,  \t tau = %1.3f\n',i,TT(i)) %Print out progress
     try
     psimaxmin_in=[Sh_cell{i+1,iM0}.psimax,Sh_cell{i+1,iM0}.psimin];
-    Sh_cell{i,iM0}=Sh_handle(Z,n,m, TT(i), M0, t, nu_star, psimaxmin_in, tol);
+    Sh_cell{i,iM0}=Sh_handle(Z,m,n, TT(i), M0, t, nu_star, psimaxmin_in, tol);
     Sh_tmp=Shock_pkg_new.Mach_sweep(Sh_handle, Sh_cell{i,iM0}, iM0, NM, M0, dM);
     for k=1:NM
         Sh_cell{i,k}=Sh_tmp{k};
